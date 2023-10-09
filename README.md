@@ -1,2 +1,2 @@
-# Lotte-Learn
+# Lottie-Learn
 Learning app
