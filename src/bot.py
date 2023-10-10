@@ -9,6 +9,16 @@ import random
 
 from enum import Enum
 
+HELP = """
+Commands:
+/start: Starts the quiz.
+/stop: Stop the quiz.
+/add_spell: Adding a new spelling, like so:
+    '/add_spell An [example] spelling'
+/list_spell: List all the spellings
+/clear_spell: Clear all the spellings
+"""
+
 SPELLING_FILE = "spellings.json"
 SPELLING_PATTERN = r'\[(.*?)\]'
 ALPHABET_PATTERN = r'[^a-zA-Z\s]+'
@@ -54,7 +64,7 @@ class LottieLearn:
     spellings_idx = 0
 
     def __init__(self):
-        self.application = ApplicationBuilder().token(args.token).build()
+        self.application = ApplicationBuilder().token(args.token).read_timeout(7).get_updates_read_timeout(42).build()
         
         start_handler = CommandHandler('start', self.start_cmd)
         stop_handler = CommandHandler('stop', self.stop_cmd)
@@ -110,7 +120,7 @@ class LottieLearn:
 
     # Handler for when the /help command is received
     async def help_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="TODO..list of commands")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=HELP)
 
     # Handler for when the /add_spell command is received
     async def add_spell_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
