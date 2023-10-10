@@ -226,6 +226,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    logging.warning(f"Token = {args.token}")
+
     ll = LottieLearn()
     ll.run()
 
