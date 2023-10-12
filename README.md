@@ -1,6 +1,8 @@
 # Lottie-Learn
 Learning app that runs as a Telegram Bot...as in you access it from the Telegram app. 
 
+![Alt Text](screenshot1.png)
+
 ## Installing as a Docker image
 
 Dependencies:
@@ -19,6 +21,6 @@ send the /newbot message to it.  Follow the instructions to create a new bot, ma
 
 On your server, run the container:
 
-    $ sudo docker run -d --name lottie-learn -e TOKEN = {API-KEY} lottie-learn
+    $ sudo docker run -d --name lottie-learn -e TOKEN={API-KEY} lottie-learn
 
 {API-KEY} is the Telegram bot's key given to you by BotFather. 
