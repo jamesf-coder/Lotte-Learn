@@ -1,11 +1,12 @@
 
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, ContextTypes, CommandHandler
 import argparse
 import logging
 import json
 import re
 import random
+import tempfile
 
 from enum import Enum
 
@@ -66,23 +67,18 @@ class LottieLearn:
     def __init__(self):
         self.application = ApplicationBuilder().token(args.token).read_timeout(7).get_updates_read_timeout(42).build()
         
-        start_handler = CommandHandler('start', self.start_cmd)
-        stop_handler = CommandHandler('stop', self.stop_cmd)
-        help_handler = CommandHandler('help', self.help_cmd)
-        add_spell_handler = CommandHandler('add_spell', self.add_spell_cmd)
-        clear_spell_handler = CommandHandler('clear_spell', self.clear_spell_cmd)
-        list_handler = CommandHandler('list_spell', self.list_spell_cmd)
-        echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo)
-        unknown_handler = MessageHandler(filters.COMMAND, self.unknown)
-
-        self.application.add_handler(start_handler)
-        self.application.add_handler(stop_handler)
-        self.application.add_handler(help_handler)
-        self.application.add_handler(add_spell_handler)
-        self.application.add_handler(clear_spell_handler)
-        self.application.add_handler(echo_handler)
-        self.application.add_handler(list_handler)
-        self.application.add_handler(unknown_handler) # MUST BE LAST!
+        self.application.add_handler( CommandHandler('start', self.start_cmd) )
+        self.application.add_handler( CommandHandler('stop', self.stop_cmd) )
+        self.application.add_handler( CommandHandler('help', self.help_cmd) )
+        self.application.add_handler( CommandHandler('add_spell', self.add_spell_cmd) )
+        self.application.add_handler( CommandHandler('clear_spell', self.clear_spell_cmd) )
+        self.application.add_handler( CommandHandler('list_spell', self.list_spell_cmd) )
+        self.application.add_handler( CommandHandler('hint', self.hint_cmd) )
+        self.application.add_handler( MessageHandler(filters.Document.ALL, self.handle_upload) )
+        self.application.add_handler( CommandHandler('export', self.export_cmd) )
+        self.application.add_handler( MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo) )
+        # This one must be last
+        self.application.add_handler( MessageHandler(filters.COMMAND, self.unknown) )
 
         # try loading the spellings, if not found then create an empty list
         try:
@@ -166,6 +162,25 @@ class LottieLearn:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, parse_mode="HTML", text=text)
 
+    # Handler for when the /hint command is received
+    async def hint_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if self.state == State.QUIZ:
+            hint = self.spellings[self.spellings_idx]["word"]
+            # replace every 3rd character with a '*'
+            hint = "".join(['*' if i%3==2 else c for i,c in enumerate(hint)])
+
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=hint)
+
+    # Handler for when the /export command is received
+    async def export_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if self.state == State.QUIZ:
+            hint = self.spellings[self.spellings_idx]["word"]
+            # replace every 3rd character with a '*'
+            hint = "".join(['*' if i%3==2 else c for i,c in enumerate(hint)])
+
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=hint)
+
+
     async def echo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if self.state == State.QUIZ:
 
@@ -198,6 +213,31 @@ class LottieLearn:
         q = " ".join(self.spellings[self.spellings_idx]['sentence'])
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Q: {q}")
 
+    async def handle_upload(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # From: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Working-with-Files-and-Media#downloading-a-file
+
+        # create a temporary file
+        (_, filename) = tempfile.mkstemp()
+
+        # Get the file object from the message
+        new_file = await update.message.effective_attachment.get_file()
+        await new_file.download_to_drive(filename)        
+
+        try:
+            self.spellings = self.spell_load(filename)["words"]
+            self.save_spell()
+            # Reply to the user
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="Loaded spellings")
+        except:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="There was a problem with that file.  Is it a JSON file that is formatted correctly?")
+
+    async def export_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # From: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Working-with-Files-and-Media#sending-files
+        
+        # Send the config file
+        await update.get_bot().send_document(chat_id=update.effective_chat.id, document=open(SPELLING_FILE, 'r'))
+
+
     # clear all the spellings
     def spell_clear(self):
         self.spellings = []
@@ -210,14 +250,19 @@ class LottieLearn:
     def spell_add_word(self, word: str, sentence: list[str]):
         self.spellings.append({"word": word, "sentence": sentence})
 
-        with open(SPELLING_FILE, 'w') as f:
-            f.write(json.dumps({"words": self.spellings}, indent=2))
+        self.save_spell()
 
     # load and return the spellings dictionary
-    def spell_load(self):
-        with open(SPELLING_FILE, 'r') as f:
+    def spell_load(self, filename=SPELLING_FILE):
+        logging.warning(f"Loading spellings from: {filename}")
+        with open(filename, 'r') as f:
             filedata = f.read()
+            logging.warning(f"File contents: {filedata}")
             return json.loads(filedata)
+
+    def save_spell(self, filename=SPELLING_FILE):
+        with open(filename, 'w') as f:
+            f.write(json.dumps({"words": self.spellings}, indent=2))
 
 
 if __name__ == '__main__':
