@@ -17,7 +17,11 @@ Commands:
 /add_spell: Adding a new spelling, like so:
     '/add_spell An [example] spelling'
 /list_spell: List all the spellings
+/hint: Show a hint for the current spelling
 /clear_spell: Clear all the spellings
+/export: Export the current spellings
+
+To import: add a file to the chat
 """
 
 SPELLING_FILE = "spellings.json"
